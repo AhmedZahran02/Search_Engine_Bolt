@@ -1,14 +1,17 @@
 package com.bolt.Brain.QueryProcessor;
 
-import com.bolt.Brain.DataStructures.UrlParapraphContentDict;
 import com.bolt.Brain.Utils.Stemmer;
 import com.bolt.Brain.Utils.StopWordsRemover;
+//import com.bolt.Brain.Utils.Synonymization;
 import com.bolt.Brain.Utils.Tokenizer;
-import com.bolt.SpringBoot.*;
+import com.bolt.SpringBoot.CrawlerService;
+import com.bolt.SpringBoot.Page;
+import com.bolt.SpringBoot.WordsDocument;
+import com.bolt.SpringBoot.WordsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,32 +25,34 @@ public class QueryProcessor {
     private CrawlerService crawlerService;
     private WordsService wordsService;
 
-    private ParagraphService paragraphService;
 
 
 
-
-
-    public QueryProcessor(CrawlerService crawlerService,WordsService wordsService, ParagraphService paragraphService)  {
+    public QueryProcessor(CrawlerService crawlerService,WordsService wordsService) throws IOException {
         tokenizer = new Tokenizer();
         stopWordsRemover = new StopWordsRemover();
+//        synonymization = new Synonymization();
         stemmer = new Stemmer();
-        this.crawlerService = crawlerService;
-        this.wordsService = wordsService;
-        this.paragraphService = paragraphService;
+        this.crawlerService=crawlerService;
+        this.wordsService=wordsService;
     }
 
     public List<WordsDocument> run(String query) throws IOException {
         //======= Variables Section ========//
         List<String> phrases = extractPhrases(query);        //0. get Phrases
 
-        //List<String> words = process(query);                //1. process query and return all words after processing
-        //List<WordsDocument> results = getWordsResult(words);
-//        System.out.println(words);
-        //getPhraseResult(query);
+        List<String> words = process(query);                //1. process query and return all words after processing
+        List<WordsDocument> results = getWordResult(words);
+        System.out.println(words);
+
+        //===== Get Documents into results ===== //
+        for (String word : words) {
+            results.addAll(wordsService.findWords(word));
+        }
+        // ==== Handel phrases ==== //
 
 
-        return getPhraseResult(query);
+        return results;
     }
 
     public List<String> extractPhrases(String query) {
@@ -66,24 +71,20 @@ public class QueryProcessor {
         return phrases;
     }
 
-
-    public List<String> basicProcess(String query) {
-        List<String> words;
-        words = tokenizer.runTokenizer(query);                          //1.Convert words to (list + toLowerCase)
-        words = stopWordsRemover.runStopWordsRemover(words);            //2.Remove Stop Words
-        return words;
-    }
-
     public List<String> process(String query) throws IOException {
         List<String> words;
-        words = basicProcess(query);                                    // [ convert it to words, remove stop words]
-        words = stemmer.runStemmer(words);                              //3.return to it's base
-        words = words.stream().distinct()                               //4.Remove Duplicates
+        query = query.replaceAll("[^a-zA-Z1-9]", " "); //1.remove single characters and numbers
+        words = tokenizer.runTokenizer(query);                          //2.Convert words to list + toLowerCase
+//        words = synonymization.runSynonymization(words//3.Replace words with its steam synonyms
+        words = tokenizer.runTokenizer(query);                          //3.Convert words to (list + toLowerCase)
+        words = stemmer.runStemmer(words);                              //4.return to it's base
+        words = stopWordsRemover.runStopWordsRemover(words);            //4.Remove Stop Words
+        words = words.stream().distinct()                               //5.Remove Duplicates
                 .collect(Collectors.toList());
         return words;
     }
 
-    private List<WordsDocument> getWordsResult(List<String> words) {
+    private List<WordsDocument> getWordResult(List<String> words) {
         List<WordsDocument> results = new ArrayList<>();
 
         //===== Get Documents into results ===== //
@@ -92,49 +93,5 @@ public class QueryProcessor {
         }
         return results;
     }
-
-    private List<WordsDocument> getPhraseResult(String phrase) throws IOException {
-        List<String> phraseWordsStemming = process(phrase);
-        List<String> phraseWords = basicProcess(phrase);
-        Pattern phrasePattern = regexPatternPhrase(phraseWords);
-
-        List<WordsDocument> results = getWordsResult(phraseWordsStemming);
-
-        for(WordsDocument wDoc: results) {
-            for(Page pg : wDoc.getPages()) {
-                List<Integer> paragraphIndexes = pg.getParagraphIndexes();
-                for(int i = 0;i < paragraphIndexes.size();i++ ) {
-                    Integer paragraphId = paragraphIndexes.get(i) - 1;
-                    String paragraph = paragraphService.findParagraph(paragraphId).getParagraph();
-                    if(! wordsExistInParagraph(phrasePattern, paragraph)) {
-                        //TODO: remove it
-                        pg.getTagIndexes().remove(i);
-                        pg.getParagraphIndexes().remove(i);
-                        pg.getWordIndexes().remove(i);
-                        pg.getTagTypes().remove(i);
-                        i--; // to calibrate loop
-                        System.out.println("remove : \t" + paragraph);
-
-                    } else {
-                        System.out.println("play : \t" +paragraph);
-                    }
-                }
-            }
-        }
-        return results;
-    }
-
-
-
-    private Pattern regexPatternPhrase(List<String> words) {
-        String regex = ".*" + String.join(".*", words) + ".*";
-        return Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
-    }
-
-    private boolean wordsExistInParagraph(Pattern pattern, String paragraph) {
-        Matcher matcher = pattern.matcher(paragraph);
-        return  matcher.matches();
-    }
-
 
 }
