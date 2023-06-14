@@ -25,6 +25,11 @@ public class WordsController {
     @Autowired
     private UrlsService urlsService;
 
+    @Autowired
+    private ParagraphService paragraphService;
+    @Autowired
+    private SearchHistoryService searchHistoryService;
+
     @GetMapping("/all")
     public ResponseEntity<List<WordsDocument>> allWords() {
         return new ResponseEntity<List<WordsDocument>>(wordsService.allWords(), HttpStatus.OK);
@@ -35,8 +40,9 @@ public class WordsController {
         return new ResponseEntity<List<String>>(paragraphService.getParagraphs(pids), HttpStatus.OK);
     }
     @GetMapping
-    public ResponseEntity<List<WordsDocument>> search(@RequestParam String q) throws IOException {
-        QueryProcessor queryProcessor = new QueryProcessor(crawlerService, wordsService);
+    public ResponseEntity<List<Document>> search(@RequestParam String q) throws IOException {
+        searchHistoryService.increaseCount(q);
+        QueryProcessor queryProcessor = new QueryProcessor(crawlerService, wordsService, paragraphService);
         List<WordsDocument> RelatedDocuments = queryProcessor.run(q);
         List<String> originalWords = queryProcessor.getOriginalWords();
         MainRanker mainRanker = new MainRanker(RelatedDocuments, urlsService , originalWords );

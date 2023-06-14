@@ -15,7 +15,7 @@ public class Page {
     private int urlId;
     private Double TF;
     private List<String> tagTypes;
-    private List<String> tagIndexes;
-    private List<String> paragraphIndexes;
-    private List<String> wordIndexes;
+    private List<Integer> tagIndexes;
+    private List<Integer> paragraphIndexes;
+    private List<Integer> wordIndexes;
 }
