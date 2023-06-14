@@ -18,7 +18,8 @@ import java.io.File;
 import java.util.*;
 
 public class mongoDB {
-    public static int MAX_PAGES_NUM = 6000  ;
+
+    public static int MAX_PAGES_NUM = 100;
     private static MongoClient client;
     private static MongoDatabase DB;
     MongoCollection<Document> seedCollection;

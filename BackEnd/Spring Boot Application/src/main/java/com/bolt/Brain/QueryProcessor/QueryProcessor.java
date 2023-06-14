@@ -1,14 +1,18 @@
 package com.bolt.Brain.QueryProcessor;
 
-import com.bolt.Brain.DataStructures.UrlParapraphContentDict;
 import com.bolt.Brain.Utils.Stemmer;
 import com.bolt.Brain.Utils.StopWordsRemover;
+//import com.bolt.Brain.Utils.Synonymization;
 import com.bolt.Brain.Utils.Tokenizer;
-import com.bolt.SpringBoot.*;
+import com.bolt.SpringBoot.CrawlerService;
+import com.bolt.SpringBoot.Page;
+import com.bolt.SpringBoot.WordsDocument;
+import com.bolt.SpringBoot.WordsService;
 
 import java.io.IOException;
-import java.io.Serial;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -16,20 +20,20 @@ import java.util.stream.Collectors;
 public class QueryProcessor {
     ProcessQueryUnit processQueryUnit;
     private CrawlerService crawlerService;
-    private static WordsService wordsService;
+    private WordsService wordsService;
+
 
     private static ParagraphService paragraphService;
 
     List<String> originalWords ;
 
-
-
-    public QueryProcessor(CrawlerService crawlerService,WordsService wordsService, ParagraphService paragraphService)  {
-        processQueryUnit = new ProcessQueryUnit(new Tokenizer(), new Stemmer(), new StopWordsRemover());
-        this.crawlerService = crawlerService;
-        this.wordsService = wordsService;
-        this.paragraphService = paragraphService;
-        originalWords = new ArrayList<>();
+    public QueryProcessor(CrawlerService crawlerService,WordsService wordsService) throws IOException {
+        tokenizer = new Tokenizer();
+        stopWordsRemover = new StopWordsRemover();
+//        synonymization = new Synonymization();
+        stemmer = new Stemmer();
+        this.crawlerService=crawlerService;
+        this.wordsService=wordsService;
     }
 
     public List<String> getOriginalWords(){
@@ -56,9 +60,15 @@ public class QueryProcessor {
         //======= Variables Section ========//
         List<WordsDocument> results = new ArrayList<>();
 
-        for(BooleanItem item: items) {
-            results.addAll(item.getResults());
+        List<String> words = process(query);                //1. process query and return all words after processing
+        List<WordsDocument> results = getWordResult(words);
+        System.out.println(words);
+
+        //===== Get Documents into results ===== //
+        for (String word : words) {
+            results.addAll(wordsService.findWords(word));
         }
+        // ==== Handel phrases ==== //
 
         //======== testing ======
         for(WordsDocument wDoc: results) {
@@ -68,10 +78,6 @@ public class QueryProcessor {
                     System.out.println(paragraph);
                     System.out.println();
                     System.out.println();
-
-                }
-            }
-        }
 
         return results;
     }
@@ -100,43 +106,20 @@ public class QueryProcessor {
         return phrases;
     }
 
-    private List<BooleanItem>  extractBooleanItem(String query) {
-        List<BooleanItem> items = new ArrayList<>();
-
-        List<String> tokens = new ArrayList<>();
-        // 1. break it to words and phrases
-        Matcher m = Pattern.compile("\"([^\"]*)\"|(\\S+)").matcher(query);
-        while (m.find()) {
-            if (m.group(1) != null) {
-                tokens.add("\"" + m.group(1) + "\"" ); // Add the quoted phrase
-            } else {
-                tokens.add(m.group(2)); // Add the unquoted word
-            }
-        }
-
-        // 2. build items
-        int tokens_sz = tokens.size();
-        for (int i = 0;i < tokens_sz;i++) {
-            if (PhraseItem.isPhrase(tokens, i))
-                items.add(new PhraseItem(processQueryUnit, tokens.get(i)));
-            else if(i > 0 && i < tokens_sz - 1 && ANDItem.isAND(tokens,i))
-                items.add(new ANDItem(processQueryUnit, "and"));
-            else if(i > 0 && i < tokens_sz - 1 && ORItem.isOR(tokens,i))
-                items.add(new ORItem(processQueryUnit, "or"));
-            else if(i > 0 && i < tokens_sz - 1 && NOTItem.isNOT(tokens,i))
-                items.add(new NOTItem(processQueryUnit, "not"));
-            else items.add(new WordItem(processQueryUnit, tokens.get(i)));
-        }
-//        for(BooleanItem itm: items) {
-//            System.out.println(itm.getContent());
-//        }
-        return items;
+    public List<String> process(String query) throws IOException {
+        List<String> words;
+        query = query.replaceAll("[^a-zA-Z1-9]", " "); //1.remove single characters and numbers
+        words = tokenizer.runTokenizer(query);                          //2.Convert words to list + toLowerCase
+//        words = synonymization.runSynonymization(words//3.Replace words with its steam synonyms
+        words = tokenizer.runTokenizer(query);                          //3.Convert words to (list + toLowerCase)
+        words = stemmer.runStemmer(words);                              //4.return to it's base
+        words = stopWordsRemover.runStopWordsRemover(words);            //4.Remove Stop Words
+        words = words.stream().distinct()                               //5.Remove Duplicates
+                .collect(Collectors.toList());
+        return words;
     }
 
-
-
-
-    public static List<WordsDocument> getWordsResult(List<String> words) {
+    private List<WordsDocument> getWordResult(List<String> words) {
         List<WordsDocument> results = new ArrayList<>();
 
         //===== Get Documents into results ===== //
@@ -146,6 +129,7 @@ public class QueryProcessor {
         return results;
     }
 
+<<<<<<< HEAD
     public static List<WordsDocument> getWordResult(String word) {
 
         return wordsService.findWords(word);
@@ -224,3 +208,6 @@ public class QueryProcessor {
 
 
 }
+=======
+}
+>>>>>>> main
